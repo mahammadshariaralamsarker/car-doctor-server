@@ -5,8 +5,6 @@ const app = express();
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
-console.log(process.env.DB_PASS)
-console.log(process.env.DB_USER)
 
 //  middleware
 app.use(cors());
@@ -44,17 +42,47 @@ async function run() {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) }
       const options = {
-        projection: { _id: 1, title: 1, price: 1,service_id:1, },
+        projection: { _id: 1, title: 1, price: 1, service_id: 1, img: 1 },
       };
-      const result = await serviceCollections.findOne(query,options)
+      const result = await serviceCollections.findOne(query, options)
       res.send(result)
     })
     // Bookings
-    app.post('/bookings',async(req,res) => {
+    app.post('/bookings', async (req, res) => {
       const booking = req.body;
       console.log(booking)
       const result = await bookingCollections.insertOne(booking)
       res.send(result)
+    })
+    app.get('/bookings', async (req, res) => {
+      // console.log(req.query.email)
+      let query = {};
+      if (req.query?.email) {
+        query = { email: req.query.email }
+      }
+      const result = await bookingCollections.find(query).toArray();
+      res.send(result);
+    })
+
+    app.patch('/bookings/:id',async(req,res)=>{
+      const id = req.params.id;
+      const filter = {_id: new ObjectId(id)}
+      const updatedBookings = req.body;
+      console.log(updatedBookings);
+      const updateDoc = {
+        $set: {
+          status: updatedBookings.status
+        },
+      };
+      const result = await bookingCollections.updateOne(filter, updateDoc)
+      res.send(result)
+    })
+
+    app.delete('/bookings/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) }
+      const result = await bookingCollections.deleteOne(query);
+      res.send(result);
     })
 
 
