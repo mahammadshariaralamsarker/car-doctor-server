@@ -32,6 +32,7 @@ async function run() {
     await client.connect();
 
     const serviceCollections = client.db('car_doctor').collection("services");
+    const bookingCollections = client.db('car_doctor').collection("bookings");
 
     app.get('/services', async (req, res) => {
       const cursor = serviceCollections.find();
@@ -46,6 +47,13 @@ async function run() {
         projection: { _id: 1, title: 1, price: 1,service_id:1, },
       };
       const result = await serviceCollections.findOne(query,options)
+      res.send(result)
+    })
+    // Bookings
+    app.post('/bookings',async(req,res) => {
+      const booking = req.body;
+      console.log(booking)
+      const result = await bookingCollections.insertOne(booking)
       res.send(result)
     })
 
