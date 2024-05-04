@@ -3,12 +3,24 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 const port = process.env.PORT || 5000;
+var jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 
 //  middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173'],
+  credentials: true
+}));
+// const corsOptions = {
+//   origin: ['http://localhost:5173','***'],
+//   credentials: true,
+//   optionSuccessStatus: 200,
+// }
+// app.use(cors(corsOptions))
 app.use(express.json());
+app.use(cookieParser());
 
 
 require('dotenv').config()
@@ -24,6 +36,29 @@ const client = new MongoClient(uri, {
   }
 });
 
+// myself middle wares
+const logger = async (req, res, next) => {
+  console.log("called:", req.host, req.originalUrl)
+  next();
+}
+
+const verifyToken = async (req, res, next) => {
+  const token = req.cookies.token;
+  console.log("Value of token middle wares:",token )
+  if(!token){
+    return res.status(401).send({message: 'Not Authorized'})
+  }
+  jwt.verify(token,process.env.ACCESS_TOKEN_SECRET,(err,decoded)=>{
+    if(err){
+      console.log(err)
+      return res.status(401).send({message:"unthorized"})
+    }
+    console.log("value in the token", decoded)
+    req.user= decoded;
+    next();
+  })
+}
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -32,7 +67,27 @@ async function run() {
     const serviceCollections = client.db('car_doctor').collection("services");
     const bookingCollections = client.db('car_doctor').collection("bookings");
 
-    app.get('/services', async (req, res) => {
+    //Auth related api
+    app.post('/jwt',logger, async (req, res) => {
+      const user = req.body;
+      console.log(user)
+      const token = jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,
+        { expiresIn: '1h' })
+      console.log(token)
+      console.log("token is from client", token)
+      res
+        .cookie('token', token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          // maxAge:60*60*1000
+        })
+        .send({ success: true })
+    })
+
+
+    // Services Related Api
+    app.get('/services',logger, async (req, res) => {
       const cursor = serviceCollections.find();
       const result = await cursor.toArray();
       res.send(result)
@@ -47,15 +102,12 @@ async function run() {
       const result = await serviceCollections.findOne(query, options)
       res.send(result)
     })
+
     // Bookings
-    app.post('/bookings', async (req, res) => {
-      const booking = req.body;
-      console.log(booking)
-      const result = await bookingCollections.insertOne(booking)
-      res.send(result)
-    })
-    app.get('/bookings', async (req, res) => {
+    app.get('/bookings',logger,verifyToken, async (req, res) => {
       // console.log(req.query.email)
+      // console.log("token is from client", req.cookies.token)
+      console.log("user in the valid token :" ,req.user )
       let query = {};
       if (req.query?.email) {
         query = { email: req.query.email }
@@ -64,9 +116,16 @@ async function run() {
       res.send(result);
     })
 
-    app.patch('/bookings/:id',async(req,res)=>{
+    app.post('/bookings', async (req, res) => {
+      console.log("token is from client", req.cookies.token)
+      const booking = req.body;
+      const result = await bookingCollections.insertOne(booking)
+      res.send(result)
+    })
+
+    app.patch('/bookings/:id', async (req, res) => {
       const id = req.params.id;
-      const filter = {_id: new ObjectId(id)}
+      const filter = { _id: new ObjectId(id) }
       const updatedBookings = req.body;
       console.log(updatedBookings);
       const updateDoc = {
@@ -84,11 +143,6 @@ async function run() {
       const result = await bookingCollections.deleteOne(query);
       res.send(result);
     })
-
-
-
-
-
 
 
     // Send a ping to confirm a successful connection
