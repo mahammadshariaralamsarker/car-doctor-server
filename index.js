@@ -10,7 +10,11 @@ require('dotenv').config()
 
 //  middleware
 app.use(cors({
-  origin: ['http://localhost:5173'],
+  origin: [
+    // 'http://localhost:5173',
+    'car-doctor-416e8.web.app',
+    'car-doctor-416e8.firebaseapp.com'
+  ],
   credentials: true
 }));
 // const corsOptions = {
@@ -67,7 +71,7 @@ async function run() {
     const serviceCollections = client.db('car_doctor').collection("services");
     const bookingCollections = client.db('car_doctor').collection("bookings");
 
-    //Auth related api
+    //Token Create
     app.post('/jwt',logger, async (req, res) => {
       const user = req.body;
       console.log(user)
@@ -76,14 +80,20 @@ async function run() {
       console.log(token)
       console.log("token is from client", token)
       res
-        .cookie('token', token, {
+         .cookie('token', token, {
           httpOnly: true,
           secure: true,
           sameSite: "none",
           // maxAge:60*60*1000
-        })
-        .send({ success: true })
+        })  
+        .send({  success: true  })
     })
+    // delete token from cookies
+    app.post('/logout',async(req,res)=>{
+      const user = req.body ;
+      console.log("loged Out", user)
+      res.clearCookie('token',{maxAge:0}).send({success:true})
+    }),
 
 
     // Services Related Api
@@ -108,6 +118,11 @@ async function run() {
       // console.log(req.query.email)
       // console.log("token is from client", req.cookies.token)
       console.log("user in the valid token :" ,req.user )
+    
+      if( req.user.email !== req.query.email){
+        return res.status(403).send({message: "forbidden access"})
+      }
+      
       let query = {};
       if (req.query?.email) {
         query = { email: req.query.email }
